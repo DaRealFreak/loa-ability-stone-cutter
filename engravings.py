@@ -83,12 +83,12 @@ class EngravingDetector:
         self.templates_neg = self._load_templates("assets/engravings/negative")
 
     @staticmethod
-    def _load_templates(folder: str):
+    def _load_templates(folder: str) -> list[dict]:
         """
         load every image in folder into a list of dicts {fn, img, w, h}.
 
-        :param folder:
-        :return:
+        :param folder: str: folder containing template images
+        :return: list[dict]: list of templates with their properties
         """
         templates = []
         for fn in sorted(os.listdir(folder)):
@@ -102,12 +102,12 @@ class EngravingDetector:
             templates.append({'fn': fn, 'img': tpl, 'w': w, 'h': h})
         return templates
 
-    def _match_one(self, tpl_dict):
+    def _match_one(self, tpl_dict: dict) -> dict | None:
         """
         run template-matching, return dict with match info if >= threshold.
 
-        :param tpl_dict:
-        :return:
+        :param tpl_dict: dict: template dict with keys {fn, img, w, h}
+        :return: dict | None: match info or None if no match found
         """
         fn = tpl_dict['fn']
         tpl = tpl_dict['img']
@@ -127,12 +127,12 @@ class EngravingDetector:
             'w': w, 'h': h
         }
 
-    def _collect(self, positive: bool = True):
+    def _collect(self, positive: bool = True) -> list[dict]:
         """
         collect all matches >= threshold from the chosen template set.
 
-        :param positive:
-        :return:
+        :param positive: bool: True for positive engravings, False for negative
+        :return: list[dict]: list of detected engravings with their properties
         """
         tpl_list = self.templates_pos if positive else self.templates_neg
         cands = []
@@ -146,11 +146,11 @@ class EngravingDetector:
 
         return cands
 
-    def _detect(self):
+    def _detect(self) -> list[dict]:
         """
         return the final selected engravings as a sorted list (top -> bottom).
 
-        :return:
+        :return: list[dict]: list of detected engravings with their properties
         """
         pos_cands = self._collect(positive=True)
         neg_cands = self._collect(positive=False)
@@ -168,12 +168,12 @@ class EngravingDetector:
         selected.sort(key=lambda c: c['y'])
         return selected
 
-    def detect_from_image(self, image: str | PIL.Image.Image):
+    def detect_from_image(self, image: str | PIL.Image.Image) -> list[dict]:
         """
         detect engravings from a given image instead of a file path.
 
-        :param image:
-        :return:
+        :param image: str or PIL.Image.Image: path to the image file or a PIL Image object
+        :return: list[dict]: list of detected engravings with their properties
         """
         if isinstance(image, str):
             img = cv2.imread(image)
@@ -213,12 +213,15 @@ class EngravingSelector(EngravingDetector):
 
     def get_selection(self, results: list[dict]) -> dict:
         """
-        From detect()’s results (top‐N positives + top‐N negatives):
-          - all_selected: those same results, each tagged with is_possible
+        from detect()'s results (top‐N positives + top‐N negatives):
           - prioritization: up to max_pos from all_selected, ordered by your priorities
           - negative_selection: best negative per type with cap info
+          - all_selected: those same results, each tagged with is_possible
+
+        :param results: list of detected engravings
+        :return: dict containing 'prioritization', 'negative_selection', and 'all_selected'
         """
-        # 1) Friendly name + possible‐flag on every entry
+        # friendly name + possible‐flag on every entry
         named = []
         for res in results:
             name = self.mapping.get(res['fn'], res['fn'])
@@ -227,16 +230,16 @@ class EngravingSelector(EngravingDetector):
             res['is_possible'] = (name in self.possible_engravings)
             named.append(res)
 
-        # 2) Split detection‐level positives vs negatives by negative_engraving_max keys
+        # split detection‐level positives vs negatives by negative_engraving_max keys
         neg_keys = set(self.negative_engraving_max)
         det_positives = [r for r in named if r['name'] not in neg_keys]
         det_negatives = [r for r in named if r['name'] in neg_keys]
 
-        # 3) Pick top‐N by score (these are your "selected" for cutting, etc.)
+        # pick top‐N by score (these are your "selected" for cutting, etc.)
         pos_sel = sorted(det_positives, key=lambda c: c['score'], reverse=True)[:self.max_pos]
         neg_sel = sorted(det_negatives, key=lambda c: c['score'], reverse=True)[:self.max_neg]
 
-        # 4) Build your prioritized positives in the order of self.priorities
+        # build your prioritized positives in the order of self.priorities
         prioritized = []
         for pr in self.priorities:
             for r in pos_sel:
@@ -246,7 +249,7 @@ class EngravingSelector(EngravingDetector):
             if len(prioritized) >= self.max_pos:
                 break
 
-        # 5) Enforce per‐negative caps on neg_sel
+        # enforce per‐negative caps on neg_sel
         from collections import defaultdict
         neg_groups = defaultdict(list)
         for r in neg_sel:
@@ -264,7 +267,7 @@ class EngravingSelector(EngravingDetector):
             best['is_negative'] = True
             negative_selection.append(best)
 
-        # 6) all_selected = exactly pos_sel + neg_sel
+        # all_selected = exactly pos_sel + neg_sel
         all_selected = pos_sel + neg_sel
 
         return {
@@ -278,6 +281,7 @@ class EngravingSelector(EngravingDetector):
         """
         check if the engraving selector could detect negative engravings.
 
+        :param results: dict: the results from the engraving detection.
         :return: True if negative engravings are possible, False otherwise
         """
         return bool(results.get('negative_selection'))
@@ -286,7 +290,7 @@ class EngravingSelector(EngravingDetector):
         """
         check if the ability stone should be cut based on the results.
 
-        :param results: list of detected engravings
+        :param results: dict: the results from the engraving detection.
         :return: True if the results should be cut, False otherwise
         """
         # special case: if only one possible engraving, and it's detected, always cut
@@ -353,7 +357,7 @@ class EngravingSelector(EngravingDetector):
 if __name__ == '__main__':
     from settings import Settings
 
-    # Instantiate selector
+    # instantiate selector
     selector = EngravingSelector(
         possible_engravings=Settings.possible_engravings,
         priorities=Settings.priorities,
@@ -364,9 +368,9 @@ if __name__ == '__main__':
         num_workers=4,
     )
 
-    # Capture screen and detect/select
+    # capture screen and detect/select
     screenshot = ImageGrab.grab()
-    screenshot = 'img_8.png'
+    screenshot = 'test/img_8.png'
     raw_results = selector.detect_from_image(screenshot)
     results = selector.get_selection(raw_results)
 
