@@ -82,24 +82,24 @@ class EngravingDetector:
         self.templates_pos = self._load_templates("assets/engravings/positive")
         self.templates_neg = self._load_templates("assets/engravings/negative")
 
-    @staticmethod
-    def _load_templates(folder: str) -> list[dict]:
+    def _load_templates(self, folder: str) -> list[dict]:
         """
         load every image in folder into a list of dicts {fn, img, w, h}.
 
         :param folder: str: folder containing template images
         :return: list[dict]: list of templates with their properties
         """
+        abs_folder = os.path.join(self.script_dir, folder)
         templates = []
-        for fn in sorted(os.listdir(folder)):
-            if not fn.lower().endswith(('.png', 'jpg', 'jpeg')):
+        for fn in sorted(os.listdir(abs_folder)):
+            if not fn.lower().endswith((".png", "jpg", "jpeg")):
                 continue
-            path = os.path.join(folder, fn)
+            path = os.path.join(abs_folder, fn)
             tpl = cv2.imread(path)
             if tpl is None:
                 continue
             h, w = tpl.shape[:2]
-            templates.append({'fn': fn, 'img': tpl, 'w': w, 'h': h})
+            templates.append({"fn": fn, "img": tpl, "w": w, "h": h})
         return templates
 
     def _match_one(self, tpl_dict: dict) -> dict | None:
@@ -301,7 +301,7 @@ class EngravingSelector(EngravingDetector):
 
         # require full match counts
         if len(results.get('prioritization', [])) != self.max_pos or \
-           len(results.get('negative_selection', [])) != self.max_neg:
+                len(results.get('negative_selection', [])) != self.max_neg:
             return False
 
         # ensure no disallowed non-whitelist positives
@@ -310,7 +310,6 @@ class EngravingSelector(EngravingDetector):
                 return False
 
         return True
-
 
     def pretty_print_results(self, results: dict) -> None:
         """
@@ -332,7 +331,8 @@ class EngravingSelector(EngravingDetector):
         if not prioritized:
             print("⚠️  No positive engravings matched the given criteria.")
         elif len(prioritized) < self.max_pos:
-            print(f"⚠️  Only {len(prioritized)} positive engravings matched the given criteria, expected {self.max_pos}.")
+            print(
+                f"⚠️  Only {len(prioritized)} positive engravings matched the given criteria, expected {self.max_pos}.")
             print("\nPrioritized positives:")
             for c in prioritized:
                 print(f" • {c['name']:20s} file={c['fn']:20s} score={c['score']:<20.3f} pos={c['position-index']}")
